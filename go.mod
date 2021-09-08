@@ -1,5 +1,9 @@
 module github.com/pingcap/tidb
 
+replace github.com/tikv/pd => github.com/tonyxuqqi/pd v1.1.0-beta.0.20210914012338-284789d78d6c
+
+replace github.com/pingcap/kvproto => github.com/tonyxuqqi/kvproto v0.0.0-20210907232328-39eb64dc78b9
+
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
@@ -16,7 +20,7 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/fsouza/fake-gcs-server v1.17.0 // indirect
-	github.com/go-sql-driver/mysql v1.5.0
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/go-yaml/yaml v2.1.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.3.4
@@ -67,9 +71,9 @@ require (
 	go.uber.org/atomic v1.8.0
 	go.uber.org/automaxprocs v1.2.0
 	go.uber.org/zap v1.17.0
-	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
-	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys v0.0.0-20210324051608-47abb6519492
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.0.0-20210330210617-4fbd30eecc44
 	golang.org/x/text v0.3.6
 	golang.org/x/tools v0.1.0
 	google.golang.org/grpc v1.27.1

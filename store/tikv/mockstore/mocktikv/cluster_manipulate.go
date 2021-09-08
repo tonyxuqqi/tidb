@@ -59,3 +59,29 @@ func BootstrapWithMultiRegions(cluster *Cluster, splitKeys ...[]byte) (storeID u
 	}
 	return
 }
+
+// BootstrapWithMultiRegionsAndBuckets initializes a Cluster with multiple Regions and 1
+// Store. The number of Regions will be len(splitKeys) + 1.
+// Each Region will have buckets specified in subSplitKeys.
+// len(splitKeys) + 1 == len(subSplitKeys)
+func BootstrapWithMultiRegionsAndBuckets(cluster *Cluster, splitKeys [][]byte, subSplitKeys [][][]byte) (storeID uint64, regionIDs, peerIDs []uint64) {
+	storeID, regionIDs, peerIDs = BootstrapWithMultiRegions(cluster, splitKeys...)
+	for i, regionID := range regionIDs {
+		region, _ := cluster.regions[regionID] // to get the region pointer instead of the copy.
+		var bucketKeys [][]byte
+		bucketKeys = append(bucketKeys, region.Meta.StartKey)
+		for _, key := range subSplitKeys[i] {
+			bucketKeys = append(bucketKeys, NewMvccKey(key))
+		}
+		bucketKeys = append(bucketKeys, region.Meta.EndKey)
+		var buckets []*metapb.RegionBucket
+		for j := 0; j < len(bucketKeys)-1; j++ {
+			buckets = append(buckets, &metapb.RegionBucket{
+				StartKey: bucketKeys[j],
+				EndKey:   bucketKeys[j+1],
+			})
+		}
+		region.Meta.RegionBucket = buckets
+	}
+	return
+}

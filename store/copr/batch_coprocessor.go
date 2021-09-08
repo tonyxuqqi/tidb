@@ -299,7 +299,7 @@ func buildBatchCopTasks(bo *Backoffer, store *kvStore, ranges *KeyRanges, storeT
 	rangesLen := ranges.Len()
 	for {
 
-		locations, err := cache.SplitKeyRangesByLocations(bo, ranges)
+		locations, err := cache.SplitKeyRangesByLocations(bo, ranges, false) // TODO: add config
 		if err != nil {
 			return nil, errors.Trace(err)
 		}

@@ -151,6 +151,121 @@ func (s *testCoprocessorSuite) TestBuildTasks(c *C) {
 	s.taskEqual(c, tasks[1], regionIDs[2], "n", "p")
 }
 
+func (s *testCoprocessorSuite) TestBuildTasksOnBuckets(c *C) {
+	// nil --- 'g' --- 'n' --- 't' --- nil
+	// <-  0  -> <- 1 -> <- 2 -> <- 3 ->
+	cluster := mocktikv.NewCluster(mocktikv.MustNewMVCCStore())
+	regionEndKeys := [][]byte{
+		[]byte("g"),
+		[]byte("n"),
+		[]byte("t"),
+	}
+
+	regionSubSplitKeys := [][][]byte{
+		{
+			[]byte("b"),
+			[]byte("d"),
+			[]byte("f"),
+		},
+		{
+			[]byte("i"),
+			[]byte("k"),
+			[]byte("m"),
+		},
+		{
+			[]byte("o"),
+			[]byte("q"),
+			[]byte("s"),
+		},
+		{
+			[]byte("u"),
+			[]byte("w"),
+			[]byte("y"),
+		},
+	}
+	_, regionIDs, _ := mocktikv.BootstrapWithMultiRegionsAndBuckets(cluster, regionEndKeys, regionSubSplitKeys)
+	pdCli := &tikv.CodecPDClient{Client: mocktikv.NewPDClient(cluster)}
+	cache := NewRegionCache(tikv.NewRegionCache(pdCli))
+	defer cache.Close()
+
+	bo := backoff.NewBackofferWithVars(context.Background(), 3000, nil)
+
+	req := &kv.Request{}
+	flashReq := &kv.Request{}
+	flashReq.StoreType = kv.TiFlash
+
+	tasks, err := buildCopTasks(bo, cache, buildCopRanges("a", "c"), req)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 2)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "b")
+	s.taskEqual(c, tasks[1], regionIDs[0], "b", "c")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "c"), flashReq)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "c")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("g", "n"), req)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 4)
+	s.taskEqual(c, tasks[0], regionIDs[1], "g", "i")
+	s.taskEqual(c, tasks[1], regionIDs[1], "i", "k")
+	s.taskEqual(c, tasks[2], regionIDs[1], "k", "m")
+	s.taskEqual(c, tasks[3], regionIDs[1], "m", "n")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("g", "n"), flashReq)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[1], "g", "n")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("m", "n"), req)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[1], "m", "n")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("m", "n"), flashReq)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[1], "m", "n")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "k"), req)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 6)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "b")
+	s.taskEqual(c, tasks[1], regionIDs[0], "b", "d")
+	s.taskEqual(c, tasks[2], regionIDs[0], "d", "f")
+	s.taskEqual(c, tasks[3], regionIDs[0], "f", "g")
+	s.taskEqual(c, tasks[4], regionIDs[1], "g", "i")
+	s.taskEqual(c, tasks[5], regionIDs[1], "i", "k")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "k"), flashReq)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 2)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "g")
+	s.taskEqual(c, tasks[1], regionIDs[1], "g", "k")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "aa", "aa", "b"), req)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "aa", "aa", "b")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "aa", "aa", "b"), flashReq)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "aa", "aa", "b")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "aa", "aa", "c"), req)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 2)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "aa", "aa", "b")
+	s.taskEqual(c, tasks[1], regionIDs[0], "b", "c")
+
+	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "aa", "aa", "c"), flashReq)
+	c.Assert(err, IsNil)
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "aa", "aa", "c")
+}
+
 func (s *testCoprocessorSuite) TestSplitRegionRanges(c *C) {
 	// nil --- 'g' --- 'n' --- 't' --- nil
 	// <-  0  -> <- 1 -> <- 2 -> <- 3 ->

@@ -682,6 +682,7 @@ type KeyLocation struct {
 	Region   RegionVerID
 	StartKey []byte
 	EndKey   []byte
+	Buckets  []*metapb.RegionBucket
 }
 
 // Contains checks if key is in [StartKey, EndKey).
@@ -705,6 +706,7 @@ func (c *RegionCache) LocateKey(bo *Backoffer, key []byte) (*KeyLocation, error)
 		Region:   r.VerID(),
 		StartKey: r.StartKey(),
 		EndKey:   r.EndKey(),
+		Buckets:  r.GetMeta().RegionBucket,
 	}, nil
 }
 
@@ -719,6 +721,7 @@ func (c *RegionCache) LocateEndKey(bo *Backoffer, key []byte) (*KeyLocation, err
 		Region:   r.VerID(),
 		StartKey: r.StartKey(),
 		EndKey:   r.EndKey(),
+		Buckets:  r.GetMeta().RegionBucket,
 	}, nil
 }
 
@@ -916,6 +919,7 @@ func (c *RegionCache) LocateRegionByID(bo *Backoffer, regionID uint64) (*KeyLoca
 			Region:   r.VerID(),
 			StartKey: r.StartKey(),
 			EndKey:   r.EndKey(),
+			Buckets:  r.GetMeta().RegionBucket,
 		}
 		return loc, nil
 	}
@@ -932,6 +936,7 @@ func (c *RegionCache) LocateRegionByID(bo *Backoffer, regionID uint64) (*KeyLoca
 		Region:   r.VerID(),
 		StartKey: r.StartKey(),
 		EndKey:   r.EndKey(),
+		Buckets:  r.GetMeta().RegionBucket,
 	}, nil
 }
 

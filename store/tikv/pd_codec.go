@@ -18,8 +18,10 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/metapb"
+	"github.com/pingcap/tidb/store/tikv/logutil"
 	"github.com/pingcap/tidb/store/tikv/util/codec"
 	pd "github.com/tikv/pd/client"
+	"go.uber.org/zap"
 )
 
 // CodecPDClient wraps a PD Client to decode the encoded keys in region meta.
@@ -88,6 +90,37 @@ func processRegionResult(region *pd.Region, err error) (*pd.Region, error) {
 }
 
 func decodeRegionMetaKeyInPlace(r *metapb.Region) error {
+	if len(r.RegionBucket) != 0 {
+		failed := false
+		for _, bucket := range r.RegionBucket {
+			if len(bucket.StartKey) > 0 {
+				_, decoded, err := codec.DecodeBytes(bucket.StartKey, nil)
+				if err != nil {
+					logutil.BgLogger().Info("decode BucketRegion StartKey failed",
+						zap.String("startKey", string(r.StartKey)), zap.String("BucketStartKey", string(bucket.StartKey)))
+					failed = true
+					break
+				}
+				bucket.StartKey = decoded
+			}
+			if len(bucket.EndKey) > 0 {
+				_, decoded, err := codec.DecodeBytes(bucket.EndKey, nil)
+				if err != nil {
+					if err != nil {
+						logutil.BgLogger().Info("decode BucketRegion EndKey failed",
+							zap.String("EndKey", string(r.EndKey)), zap.String("BucketEndKey", string(bucket.EndKey)))
+						failed = true
+						break
+					}
+				}
+				bucket.EndKey = decoded
+			}
+		}
+		if failed {
+			r.RegionBucket = make([]*metapb.RegionBucket, 0)
+		}
+	}
+
 	if len(r.StartKey) != 0 {
 		_, decoded, err := codec.DecodeBytes(r.StartKey, nil)
 		if err != nil {
@@ -102,6 +135,7 @@ func decodeRegionMetaKeyInPlace(r *metapb.Region) error {
 		}
 		r.EndKey = decoded
 	}
+
 	return nil
 }
 

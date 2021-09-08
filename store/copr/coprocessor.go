@@ -159,7 +159,7 @@ func buildCopTasks(bo *Backoffer, cache *RegionCache, ranges *KeyRanges, req *kv
 
 	rangesLen := ranges.Len()
 
-	locs, err := cache.SplitKeyRangesByLocations(bo, ranges)
+	locs, err := cache.SplitKeyRangesByLocations(bo, ranges, req.StoreType == kv.TiKV) // TODO: add config
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

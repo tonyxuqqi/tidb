@@ -17,10 +17,12 @@ import (
 	"bytes"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/store/tikv"
 	"github.com/pingcap/tidb/store/tikv/logutil"
 	"github.com/pingcap/tidb/store/tikv/metrics"
+	"go.uber.org/zap"
 )
 
 // RegionCache wraps tikv.RegionCache.
@@ -37,7 +39,7 @@ func NewRegionCache(rc *tikv.RegionCache) *RegionCache {
 func (c *RegionCache) SplitRegionRanges(bo *Backoffer, keyRanges []kv.KeyRange) ([]kv.KeyRange, error) {
 	ranges := NewKeyRanges(keyRanges)
 
-	locations, err := c.SplitKeyRangesByLocations(bo, ranges)
+	locations, err := c.SplitKeyRangesByLocations(bo, ranges, true) // TODO: add config
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -59,51 +61,89 @@ type LocationKeyRanges struct {
 }
 
 // SplitKeyRangesByLocations splits the KeyRanges by logical info in the cache.
-func (c *RegionCache) SplitKeyRangesByLocations(bo *Backoffer, ranges *KeyRanges) ([]*LocationKeyRanges, error) {
+func (c *RegionCache) SplitKeyRangesByLocations(bo *Backoffer, ranges *KeyRanges, enableSplitOnBucket bool) ([]*LocationKeyRanges, error) {
 	res := make([]*LocationKeyRanges, 0)
-	for ranges.Len() > 0 {
-		loc, err := c.LocateKey(bo.TiKVBackoffer(), ranges.At(0).StartKey)
-		if err != nil {
-			return res, errors.Trace(err)
-		}
 
-		// Iterate to the first range that is not complete in the region.
+	isInBucket := func(bucket *metapb.RegionBucket, key []byte) bool {
+		return bytes.Compare(bucket.StartKey, key) <= 0 &&
+			(bytes.Compare(key, bucket.EndKey) < 0 || len(bucket.EndKey) == 0)
+	}
+
+	isInRegionOrBucket := func(loc *tikv.KeyLocation, bucketIdx int, useBucket bool, key []byte) bool {
+		if !useBucket {
+			return loc.Contains(key)
+		}
+		return isInBucket(loc.Buckets[bucketIdx], key)
+	}
+
+	equalRegionOrBucketEndKey := func(loc *tikv.KeyLocation, bucketIdx int, useBucket bool, key []byte) bool {
+		if !useBucket {
+			return bytes.Equal(loc.EndKey, key)
+		}
+		return bytes.Equal(loc.Buckets[bucketIdx].EndKey, key)
+	}
+	var loc *tikv.KeyLocation
+	var err error
+	bucketIdx := 0
+	regionCount := 0
+	rangeCount := ranges.Len()
+	for ranges.Len() > 0 {
+		if loc == nil || bucketIdx >= len(loc.Buckets) || !enableSplitOnBucket {
+			loc, err = c.LocateKey(bo.TiKVBackoffer(), ranges.At(0).StartKey)
+			if err != nil {
+				return res, errors.Trace(err)
+			}
+			bucketIdx = 0
+			regionCount++
+		}
+		useBucket := enableSplitOnBucket && len(loc.Buckets) != 0
+
+		// Iterate to the first range that is not complete in the region bucket.
 		var i int
 		for ; i < ranges.Len(); i++ {
 			r := ranges.At(i)
-			if !(loc.Contains(r.EndKey) || bytes.Equal(loc.EndKey, r.EndKey)) {
+			if !(isInRegionOrBucket(loc, bucketIdx, useBucket, r.EndKey) || equalRegionOrBucketEndKey(loc, bucketIdx, useBucket, r.EndKey)) {
 				break
 			}
 		}
-		// All rest ranges belong to the same region.
+		// All rest ranges belong to the same region bucket.
 		if i == ranges.Len() {
 			res = append(res, &LocationKeyRanges{Location: loc, Ranges: ranges})
+			bucketIdx++
 			break
 		}
 
 		r := ranges.At(i)
-		if loc.Contains(r.StartKey) {
-			// Part of r is not in the region. We need to split it.
+		if isInRegionOrBucket(loc, bucketIdx, useBucket, r.StartKey) {
+			// Part of r is not in the region bucket. We need to split it.
+			endKey := loc.EndKey
+			if useBucket {
+				endKey = loc.Buckets[bucketIdx].EndKey
+			}
 			taskRanges := ranges.Slice(0, i)
 			taskRanges.last = &kv.KeyRange{
 				StartKey: r.StartKey,
-				EndKey:   loc.EndKey,
+				EndKey:   endKey,
 			}
 			res = append(res, &LocationKeyRanges{Location: loc, Ranges: taskRanges})
 
 			ranges = ranges.Slice(i+1, ranges.Len())
 			ranges.first = &kv.KeyRange{
-				StartKey: loc.EndKey,
+				StartKey: endKey,
 				EndKey:   r.EndKey,
 			}
-		} else {
-			// rs[i] is not in the region.
+		} else if i != 0 {
+			// rs[i] is not in the region bucket.
 			taskRanges := ranges.Slice(0, i)
 			res = append(res, &LocationKeyRanges{Location: loc, Ranges: taskRanges})
 			ranges = ranges.Slice(i, ranges.Len())
 		}
+		bucketIdx++
 	}
-
+	if enableSplitOnBucket && len(res) != regionCount {
+		logutil.Logger(bo.GetCtx()).Info("SplitKeyRangesByLocations",
+			zap.Int("Res.size", len(res)), zap.Int("RegionCount", regionCount), zap.Int("KeyRangeCount", rangeCount))
+	}
 	return res, nil
 }
 
