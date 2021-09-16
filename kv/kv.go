@@ -291,6 +291,8 @@ type Request struct {
 	MatchStoreLabels []*metapb.StoreLabel
 	// ResourceGroupTag indicates the kv request task group.
 	ResourceGroupTag []byte
+	// Split large query request on region bucket
+	SplitOnRegionBucket bool
 }
 
 // ResultSubset represents a result subset from a single storage unit.

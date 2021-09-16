@@ -1426,6 +1426,10 @@ var defaultSysVars = []*SysVar{
 		}
 		return nil
 	}},
+	{Scope: ScopeSession, Name: TiDBEnableRegionBucket, Value: BoolToOnOff(DefEnableRegionBucket), Type: TypeBool, SetSession: func(s *SessionVars, val string) error {
+		s.EnableSplitOnRegionBucket = TiDBOptOn(val)
+		return nil
+	}},
 	{Scope: ScopeSession, Name: TiDBAllowRemoveAutoInc, Value: BoolToOnOff(DefTiDBAllowRemoveAutoInc), skipInit: true, Type: TypeBool, SetSession: func(s *SessionVars, val string) error {
 		s.AllowRemoveAutoInc = TiDBOptOn(val)
 		return nil

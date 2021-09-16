@@ -115,22 +115,32 @@ func (c *RegionCache) SplitKeyRangesByLocations(bo *Backoffer, ranges *KeyRanges
 
 		r := ranges.At(i)
 		if isInRegionOrBucket(loc, bucketIdx, useBucket, r.StartKey) {
-			// Part of r is not in the region bucket. We need to split it.
+			// Part of r is not in the region bucket. We may need to split it if the range cross more than two region buckets or cross one region.
 			endKey := loc.EndKey
+			lastIncludedIdx := i - 1
 			if useBucket {
-				endKey = loc.Buckets[bucketIdx].EndKey
+				if len(loc.Buckets) > bucketIdx+1 && (isInRegionOrBucket(loc, bucketIdx+1, useBucket, r.EndKey) || equalRegionOrBucketEndKey(loc, bucketIdx+1, useBucket, r.EndKey)) {
+					endKey = r.EndKey // EndKey belong to next region bucket
+					lastIncludedIdx = i
+				} else {
+					endKey = loc.Buckets[bucketIdx].EndKey
+				}
 			}
-			taskRanges := ranges.Slice(0, i)
-			taskRanges.last = &kv.KeyRange{
-				StartKey: r.StartKey,
-				EndKey:   endKey,
+
+			taskRanges := ranges.Slice(0, lastIncludedIdx+1)
+			if lastIncludedIdx == i-1 {
+				taskRanges.last = &kv.KeyRange{
+					StartKey: r.StartKey,
+					EndKey:   endKey,
+				}
 			}
 			res = append(res, &LocationKeyRanges{Location: loc, Ranges: taskRanges})
-
 			ranges = ranges.Slice(i+1, ranges.Len())
-			ranges.first = &kv.KeyRange{
-				StartKey: endKey,
-				EndKey:   r.EndKey,
+			if lastIncludedIdx == i-1 {
+				ranges.first = &kv.KeyRange{
+					StartKey: endKey,
+					EndKey:   r.EndKey,
+				}
 			}
 		} else if i != 0 {
 			// rs[i] is not in the region bucket.

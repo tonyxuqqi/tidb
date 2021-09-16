@@ -248,6 +248,7 @@ func (builder *RequestBuilder) SetFromSessionVars(sv *variable.SessionVars) *Req
 	builder.Request.TaskID = sv.StmtCtx.TaskID
 	builder.Request.Priority = builder.getKVPriority(sv)
 	builder.Request.ReplicaRead = sv.GetReplicaRead()
+	builder.Request.SplitOnRegionBucket = sv.EnableSplitOnRegionBucket
 	builder.SetResourceGroupTag(sv.StmtCtx)
 	return builder
 }

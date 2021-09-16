@@ -855,6 +855,9 @@ type SessionVars struct {
 
 	// EnableStableResultMode if stabilize query results.
 	EnableStableResultMode bool
+
+	// EnableSplitOnRegionBucket if splits large query based on region bucket
+	EnableSplitOnRegionBucket bool
 }
 
 // AllocMPPTaskID allocates task id for mpp tasks. It will reset the task id if the query's

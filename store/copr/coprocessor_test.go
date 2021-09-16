@@ -191,14 +191,15 @@ func (s *testCoprocessorSuite) TestBuildTasksOnBuckets(c *C) {
 	bo := backoff.NewBackofferWithVars(context.Background(), 3000, nil)
 
 	req := &kv.Request{}
+	req.SplitOnRegionBucket = true
 	flashReq := &kv.Request{}
 	flashReq.StoreType = kv.TiFlash
 
 	tasks, err := buildCopTasks(bo, cache, buildCopRanges("a", "c"), req)
 	c.Assert(err, IsNil)
-	c.Assert(tasks, HasLen, 2)
-	s.taskEqual(c, tasks[0], regionIDs[0], "a", "b")
-	s.taskEqual(c, tasks[1], regionIDs[0], "b", "c")
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "c")
+	//s.taskEqual(c, tasks[1], regionIDs[0], "b", "c")
 
 	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "c"), flashReq)
 	c.Assert(err, IsNil)
@@ -207,11 +208,10 @@ func (s *testCoprocessorSuite) TestBuildTasksOnBuckets(c *C) {
 
 	tasks, err = buildCopTasks(bo, cache, buildCopRanges("g", "n"), req)
 	c.Assert(err, IsNil)
-	c.Assert(tasks, HasLen, 4)
+	c.Assert(tasks, HasLen, 3)
 	s.taskEqual(c, tasks[0], regionIDs[1], "g", "i")
 	s.taskEqual(c, tasks[1], regionIDs[1], "i", "k")
-	s.taskEqual(c, tasks[2], regionIDs[1], "k", "m")
-	s.taskEqual(c, tasks[3], regionIDs[1], "m", "n")
+	s.taskEqual(c, tasks[2], regionIDs[1], "k", "n")
 
 	tasks, err = buildCopTasks(bo, cache, buildCopRanges("g", "n"), flashReq)
 	c.Assert(err, IsNil)
@@ -230,13 +230,12 @@ func (s *testCoprocessorSuite) TestBuildTasksOnBuckets(c *C) {
 
 	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "k"), req)
 	c.Assert(err, IsNil)
-	c.Assert(tasks, HasLen, 6)
+	c.Assert(tasks, HasLen, 5)
 	s.taskEqual(c, tasks[0], regionIDs[0], "a", "b")
 	s.taskEqual(c, tasks[1], regionIDs[0], "b", "d")
 	s.taskEqual(c, tasks[2], regionIDs[0], "d", "f")
 	s.taskEqual(c, tasks[3], regionIDs[0], "f", "g")
-	s.taskEqual(c, tasks[4], regionIDs[1], "g", "i")
-	s.taskEqual(c, tasks[5], regionIDs[1], "i", "k")
+	s.taskEqual(c, tasks[4], regionIDs[1], "g", "k")
 
 	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "k"), flashReq)
 	c.Assert(err, IsNil)
@@ -256,9 +255,9 @@ func (s *testCoprocessorSuite) TestBuildTasksOnBuckets(c *C) {
 
 	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "aa", "aa", "c"), req)
 	c.Assert(err, IsNil)
-	c.Assert(tasks, HasLen, 2)
-	s.taskEqual(c, tasks[0], regionIDs[0], "a", "aa", "aa", "b")
-	s.taskEqual(c, tasks[1], regionIDs[0], "b", "c")
+	c.Assert(tasks, HasLen, 1)
+	s.taskEqual(c, tasks[0], regionIDs[0], "a", "aa", "aa", "c")
+	//s.taskEqual(c, tasks[1], regionIDs[0], "b", "c")
 
 	tasks, err = buildCopTasks(bo, cache, buildCopRanges("a", "aa", "aa", "c"), flashReq)
 	c.Assert(err, IsNil)

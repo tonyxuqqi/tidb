@@ -169,6 +169,9 @@ const (
 	// TiDBReplicaRead is used for reading data from replicas, followers for example.
 	TiDBReplicaRead = "tidb_replica_read"
 
+	// TiDBEnableRegionBucket is used for spliting large query based on region bucket.
+	TiDBEnableRegionBucket = "tidb_enable_region_bucket"
+
 	// TiDBAllowRemoveAutoInc indicates whether a user can drop the auto_increment column attribute or not.
 	TiDBAllowRemoveAutoInc = "tidb_allow_remove_auto_inc"
 
@@ -725,6 +728,7 @@ const (
 	DefTiDBEnableLocalTxn              = false
 	DefTMPTableSize                    = 16777216
 	DefTiDBEnableOrderedResultMode     = false
+	DefEnableRegionBucket              = false
 )
 
 // Process global variables.
